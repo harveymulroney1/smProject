@@ -1,0 +1,182 @@
+﻿@page "/profile/{PageuserID:int}/connections"
+@inject NavigationManager _navigationManager
+<h3>Connections</h3>
+@using SocialMediaMP.Data
+@inject UserService uservice
+@inject Blazored.SessionStorage.ISessionStorageService session
+@attribute [Authorize]
+
+@*Suggested Friends*@
+<AuthorizeView>
+    <Authorized>
+        @if (connections != null && connections.Count>0)
+        {
+            foreach (User user in connections)
+            {
+                <li><a href="profile/@user.User_ID">@user.UserName - Email: @user.Email</a></li>
+            }
+        }
+        else
+        {
+            <p>This User has no connections</p>
+        }
+        @if (FriendsToSuggest!=null && FriendsToSuggest.Count>0)
+        {
+            <h2>These are some Suggested Friends, You could follow them!</h2>
+            foreach (User u in FriendsToSuggest)
+            {
+                
+                
+                <li><a href="profile/@u.User_ID">@u.UserName - Email: @u.Email</a></li>
+                
+                
+            <div>
+
+            </div>
+            }
+        }
+        else
+        {
+            <p></p>
+        }
+
+    </Authorized>
+    <NotAuthorized>
+       
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    // dont think it needs to be UConnections
+    //UserService uService = new UserService();
+    SocialNetwork sn = new SocialNetwork();
+    [Parameter]
+    public int PageuserID { get; set; }
+    List<User> UConnections = new List<User>();  // connections of the users profile being viewed
+    int userLoggedinID = 0;
+    List<User> FriendsToSuggest;
+    //public async Task<List<User>> GetConnectionInfo() // make it so it has the link -> hyperlink idk                                               
+    //{                                                
+    //    List<User> UConnections = new List<User>();                                                
+    //    List<int> conn = sn.GetConnectionsByID(profileID); // profile page currently on                                                
+    //    foreach (int ConnID in conn) // each one of its connections                                               
+    //    {                                               
+    //        User u = new User();
+
+    //        u = await uService.GetUserByID(ConnID); // gets the user info correlating to that id                                               
+    //        UConnections.Add(u);
+
+    //    }
+    //    return UConnections;
+    //}
+    private List<User> connections;
+
+    public async Task GetPageUID()
+    {
+        Uri uri = new Uri(_navigationManager.Uri);       
+        string UIDstring = uri.Segments[2].ToString();
+        if (UIDstring != "/")
+        {
+            if (int.TryParse(UIDstring, out int userIDValue))
+            {
+                PageuserID = userIDValue;
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        //await GetPageUID();
+        var CheckNullConnInfo = GetConnectionInfo();
+        if (CheckNullConnInfo!=null)
+        {
+            connections = CheckNullConnInfo;
+        }
+        //await GetPageUID();
+        //connections = GetConnectionInfo(); // gets the connection info when website is opened
+        //await GetUserSessionValueAsync(); // may not work as of some error move to after render 
+        //                                  //check if this assigns a value
+        FriendsToSuggest = await GetSuggestFriends();
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // gets the connection info when website is opened
+        await GetUIDSessionAsync();
+        //FriendsToSuggest = await GetSuggestFriends();
+    }
+    public List<User> GetConnectionInfo() // make it so it has the link -> hyperlink idk
+    {
+        //sn.AddConnection(52, 51);
+        //sn.AddConnection(52, 37);
+        //sn.AddConnection(52, 33);
+        try
+        {
+            List<int> conn = sn.GetConnectionsByID(PageuserID); // profile page currently on
+            foreach (int ConnID in conn) // each one of its connections
+            {
+
+                //sn.Users
+                sn.Users.TryGetValue(ConnID, out User user); // tries to get the User value(username etc) from the Dictionary of the PageuserID
+                UConnections.Add(user);
+
+            }
+            return UConnections;
+        }
+        catch (Exception)
+        {
+
+            _navigationManager.NavigateTo($"profile/{PageuserID}",true);
+
+        }
+        return null;
+    }
+    private async Task<int> GetUIDSessionAsync()
+    {
+        // need to call this to get the value
+
+        User userLoggedin = await session.GetItemAsync<User>("UserLoggedIn");
+        if (userLoggedin!=null)
+        {
+            userLoggedinID = userLoggedin.User_ID;
+        }
+
+
+        return userLoggedinID;
+    }
+    public  async Task<List<User>> GetSuggestFriends() // shouldnt be a void should be a list which can be run through mayb list of users which can be ran through and shown user.Username etc -> 
+                                                      //add friend button after it the getting user would be different would have to get that specific user looking ats ID and send it with that -> only suggest one at a time?
+    {
+        SocialNetwork sn = new();
+        List<User> FriendsToSuggest = new();
+        userLoggedinID = await GetUIDSessionAsync();
+        if (userLoggedinID!=0)
+        {
+
+            List<int> UIDsofSuggestedFriends = sn.SuggestFriends(userLoggedinID); // suggests friends of UserLoggedIn even if not on their own page 
+                                                                                  // go through the IDs and get the User from it
+            foreach (int id in UIDsofSuggestedFriends)
+            {
+
+                if (id!=0)
+                {
+                    
+
+                        User u = await uservice.GetUserByID(id);
+                    if (u!=null)
+                    {
+
+                        FriendsToSuggest.Add(u);
+                            
+                    }
+                    
+
+                
+                }
+
+            }
+
+        }
+        return FriendsToSuggest;
+    }
+
+}

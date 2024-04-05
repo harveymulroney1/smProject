@@ -1,0 +1,230 @@
+﻿@page "/createaccount"
+@using SocialMediaMP.Data
+@inject NavigationManager _navigationManager
+@*@inject Blazored.SessionStorage.ISessionStorageService session*@
+@using System.Data;
+@using System.Data.SqlClient;
+@using System.ComponentModel.DataAnnotations;
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Text.RegularExpressions;
+@inject SocialNetwork sn
+@inject SessionAuthenticationProvider AuthStateProvider
+@inject UserService uservice
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@inject Blazored.SessionStorage.ISessionStorageService session
+@inject IJSRuntime js
+@using Microsoft.AspNetCore.Identity;
+@using Microsoft.AspNetCore.Mvc;
+
+<h3>CreateAccount</h3>
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+                <p>You are currently logged in.</p>
+                <button class="btn btn-primary" @onclick="UserLoggedIn">Logout</button>
+        </Authorized>
+        <NotAuthorized>
+            <form>
+                <input type="text" @bind="UserName" placeholder="Username" required />
+                @*<input type="text" @bind="rawPass" placeholder="Password" required />*@
+                
+                
+                @if (ShowPassword==true)
+                {
+                    <input type="text" @bind="rawPass" placeholder="Password" required />
+                }
+                else
+                {
+                    <input type="password" @bind="rawPass" placeholder="Password" required />
+                }
+                <input type="email" id="emailInput" @bind="EmailAddress" placeholder="Email Address" required />
+                <input type="checkbox" @onclick="(HandleShowPass)" /> Show Password
+                @if (UserName != string.Empty && EmailAddress != string.Empty && rawPass != string.Empty && Regex.IsMatch(EmailAddress, @"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$"))
+                {
+                    formIsValid = true;
+                }
+@*                else if (UserName == string.Empty || EmailAddress == string.Empty || rawPass == string.Empty)
+                {
+                    EmptyFieldsTxt = "Please Fill in All Fields";
+                    <p><b>@EmptyFieldsTxt</b></p>
+                }
+                @if (!Regex.IsMatch(EmailAddress, @"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$"))
+                {
+                    InvalidEmailTxt = "Please enter a valid email address";
+                    <p><b>@InvalidEmailTxt</b></p>
+                }*@
+                <button type="submit" class="btn btn-success" @onclick="CreateAcc"disabled="@(formIsValid==false)">Create Account</button>
+            </form> 
+      
+            <div>
+                
+                <div>
+                    <p></p>
+                    <p></p>
+                    <p></p>
+                    <p></p>
+                    <p>If you already have an account <a href="/login">Login here</a></p>
+                </div>
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+</CascadingAuthenticationState>
+    
+
+    
+    
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationState { get; set; }
+    private AuthenticationState _authState;
+    string UserName = string.Empty;
+    string rawPass = string.Empty;
+    [EmailAddress]
+    string EmailAddress = string.Empty;
+    string duplEM = string.Empty;
+    string duplUN = string.Empty;
+    private ClaimsPrincipal ClaimsUser;
+    private bool formIsValid = false;
+    bool ShowPassword = false;
+    string InvalidEmailTxt = "";
+    string EmptyFieldsTxt = "";
+    //const isValidEmail = emailInput.checkValidity();
+
+    void HandleShowPass()
+    {
+
+        if (ShowPassword!=true) // checks if not already showing pass
+        {
+            ShowPassword = true;
+
+        }
+        else
+        {
+            ShowPassword = false;
+        }
+
+    }
+
+    //protected override async Task OnInitializedAsync()
+    //{
+
+    //    //if (await session.ContainKeyAsync("UserLoggedIn") == false)
+    //    //{
+    //    //    // user is not logged in, do something...
+    //    //    LoggedIn = false;
+    //    //}
+    //    //else
+    //    //{
+    //    //    LoggedIn = true;
+    //    //    // user is logged in, do something else...
+    //    //}
+    //    //await GetAuthenticationState();
+    //    //if (ClaimsUser.Identity.IsAuthenticated)
+    //    //{
+    //    //    _navigationManager.NavigateTo("/feed");
+    //    //}
+    //}
+    //protected override async Task OnAfterRenderAsync(bool firstRender)
+    //{
+    //    if (await session.ContainKeyAsync("UserLoggedIn") == false)
+    //    {
+    //        // user is not logged in, do something...
+    //        LoggedIn = false;
+    //    }
+    //    else
+    //    {
+    //        LoggedIn = true;
+    //        // user is logged in, do something else...
+    //    }
+    //}
+    public async void UserLoggedIn() // sends them to logout if they logged in
+    {
+
+        await Task.Delay(3000);
+        _navigationManager.NavigateTo("/logout", true);
+    }
+    public async void CreateAcc()
+    {
+
+        try
+        {
+
+            User u = new User();
+
+                //await session.ClearAsync();
+                if (AuthenticationChecks.CheckUN(UserName) == true) //checks if UN already exists - no duplicates
+                {
+                    duplUN = "Username already Exists, Try another";
+                    await js.InvokeVoidAsync("alert", duplUN);
+                    UserName = string.Empty;
+                    _navigationManager.NavigateTo("/createaccount");
+                }
+                if (AuthenticationChecks.CheckEM(EmailAddress) == true)
+                {
+                    duplEM = "Try a Different Email Address";
+                    await js.InvokeVoidAsync("alert", duplEM);
+                    EmailAddress = string.Empty;
+                    _navigationManager.NavigateTo("/createaccount");
+                }
+                //if (AuthenticationChecks.CheckUN(UserName) == false && AuthenticationChecks.CheckEM(EmailAddress) == false && EmailAddress != string.Empty && UserName != string.Empty) // checks if both UN and EM dont already exist
+                if (AuthenticationChecks.CheckUN(UserName) == false && AuthenticationChecks.CheckEM(EmailAddress) == false && formIsValid)             
+                {
+
+                    if (EmailAddress !=string.Empty || UserName!=string.Empty)
+                {
+                     string BC = User.BackupCodeCreator();
+
+
+
+
+                    string BCoutputTxt = ($"Your Backupcode is {BC} Please write this down");
+                    await js.InvokeVoidAsync("alert", BCoutputTxt);
+                    string HashedPW = User.HashPassword(rawPass);
+                    User user = new User(UserName, HashedPW, EmailAddress, BC);             // these values need to be checked if null
+                                                                                            //DBConnection SocialDB = new DBConnection();
+                    int UID = uservice.GetUIDByUN(UserName); 
+                    //user.UserName = UserName;
+                    //user.User_ID = UID;
+                    u.UserName = UserName;
+                    u.User_ID = UID;
+                    
+                    await session.SetItemAsync<User>("UserLoggedIn", u);
+                   // StateHasChanged(); // re renders the PAAGE
+                    
+                    //await AuthStateProvider.RefreshAuthState(); // sets authentication as this new user // isnt needed 
+                    await js.InvokeVoidAsync("alert", "Sucess");
+                    
+                    //await sn.LoadUsers();
+                    //await Task.Delay(3000);
+                    _navigationManager.NavigateTo($"/profile/{UID}",true); // did orig reload
+                }
+                //else
+                //{
+                //    var message = "Login unsuccessful Try Again";
+                //    await js.InvokeVoidAsync("alert", message);
+                //    UserName = string.Empty;
+                //    rawPass = string.Empty;
+                //    EmailAddress = string.Empty;
+                //    //LogInSuccessful = "Login unsuccessful try again";
+                //    _navigationManager.NavigateTo("/createaccount", true);
+                //}
+                }
+
+                   
+            
+        }
+        catch (Exception)
+        {
+
+            _navigationManager.NavigateTo("/createaccount", true);
+        }
+       
+
+        
+
+    }
+ 
+
+    
+}

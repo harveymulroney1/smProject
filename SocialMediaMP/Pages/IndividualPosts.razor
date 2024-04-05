@@ -1,0 +1,298 @@
+﻿@page "/post/{Post_Id:int}"
+@using SocialMediaMP.Data
+@using System.Data.SqlClient;
+@using System.Data;
+@inject UserService uservice
+@inject IJSRuntime js
+@inject NavigationManager _navigationManager
+@inject PostService Pservice
+@attribute [Authorize]
+
+@if (PostToDisplay!=null)
+{
+    <div>
+        <button class="btn alert" @onclick="HandleReplyOnClick"><img src=@ReplyIcon/></button>
+
+    </div>
+    if (CreateReply == true)
+    {
+        <div>
+            <input @bind="ReplyText" placeholder="Type your reply here"></input>
+            
+            @if (ReplyText != string.Empty )
+            {
+                formIsValidReply = true;
+            }
+
+
+            
+            <button class="btn btn-success" @onclick="HandleReply" disabled="@(!formIsValidReply)">Post Reply</button>
+            
+
+
+        </div>
+    }
+
+        <table class="table">
+        <thead>
+            <tr>
+                <th>Caption</th>
+                <th>Text</th>
+                <th>Author</th>
+
+            </tr>
+             
+        </thead>
+        <tbody>
+        <tr>
+            <td>@PostToDisplay.PostCaption</td>
+            <td>@PostToDisplay.PostText</td>
+            <td><a href="/profile/@PostToDisplay.User_ID">@PostToDisplay.AuthorUN</a></td>
+                    
+        </tr>
+                </tbody>
+                </table>
+                            @if (Liked==false)
+            {
+        <button class="btn alert" @onclick="HandleLike"><strong>@NumOfLikes</strong>    <img src="@LikeIconURL" /></button>
+            }
+            @if (Liked==true)
+            {
+        <button class="btn alert" @onclick="HandleUnlike"><strong>@NumOfLikes</strong>    <img src="@ExistingLikeIconURL" /></button>
+            }
+
+                    <h3>Replies</h3>
+            <table class="table">
+                
+        <thead>
+            <tr>
+
+                <th>Text</th>
+                <th>Author</th>
+
+            </tr>
+             
+        </thead>
+        <tbody>
+                    @foreach (Reply reply in ListofReplies)
+            {
+
+                <tr>
+                    <td>@reply.ReplyText</td>
+                    <td><a href="/profile/@reply.User_ID">@reply.ReplierUN</a></td>
+                    
+                    
+                    
+                </tr>
+            }
+                </tbody>
+                </table>
+
+}
+else
+{
+    <p>Incorrect PostID</p>
+}
+
+
+@code {
+    [Parameter]
+    public int Post_Id { get; set; }
+    string ReplyText = string.Empty;
+    Post PostToDisplay = new();
+    bool CreateReply = false;
+    bool formIsValidReply = false;
+    bool Liked = false;
+    string LikeIconURL = $"images/like.png";
+    string ExistingLikeIconURL = $"images/like-blue.png";
+    string ReplyIcon = $"images/comments.png";
+    public int NumOfLikes;
+
+    async Task GetPost()
+    {
+        Post p = await Pservice.GetPostByPostID(Post_Id);
+        if (p!=null)
+        {
+            PostToDisplay = p;
+        }
+        else
+        {
+            PostToDisplay = null;
+        }
+    }
+    void HandleReplyOnClick()
+    {
+        if (CreateReply != true)
+        {
+            CreateReply = true; // toggles the view when they click it
+        }
+        else
+        {
+            CreateReply = false;
+        }
+        
+    }
+    async Task CheckExistingLike()
+    {
+        int userID = await uservice.GetUIDSessionAsync();
+        foreach (Like item in ListOfLikes)
+        {
+            NumOfLikes++;
+            if (item.User_ID == userID) // checks if the user logged In has liked before
+            {
+                Liked = true;
+            }
+            else
+            {
+                Liked = false;
+            }
+        }
+    }
+    async Task HandleLike()
+    {
+        DBConnection socialDB = new();
+        try
+        {
+            int userID = await uservice.GetUIDSessionAsync();
+            if (Liked == false)
+            {
+                string sql = "INSERT INTO dbo.Likes (User_ID,Post_Id) VALUES (@userID,@Post_Id)"; // inserts into the db if theres not alrdy a column
+                List<SqlParameter> parameters = new List<SqlParameter>();
+                parameters.Add(new SqlParameter("userID", userID));
+                parameters.Add(new SqlParameter("Post_Id", Post_Id));
+                socialDB.Insert(sql, parameters);
+                Liked = true;
+                socialDB.Close();
+                NumOfLikes++;
+                StateHasChanged();
+                //_navigationManager.NavigateTo($"/post/{Post_Id}", true);               
+            }
+
+            //    string Selectsql = ("SELECT * FROM dbo.Likes WHERE User_ID = @userID AND Post_Id = @Post_Id"); // gets info about likes
+            //    List<SqlParameter> SelectParam = new List<SqlParameter>();
+            //    SelectParam.Add(new SqlParameter("userID", userID));
+            //    SelectParam.Add(new SqlParameter("Post_Id", Post_Id));
+
+            //    DataTable results = socialDB.SelectParameters(Selectsql, SelectParam); // does a check to see if there is an existing like on the post -> if so it just readds the data
+
+            //    if (results.Rows.Count == 1) // if there is a row that exists then it updates it rather than creating a new collumn -> no repeating columns with diff data but same UID
+            //    {
+            //        //        string deleteSQL = $"DELETE FROM UserConnections WHERE User_ID = {userID}"; // deletes the current row so no duplicates                                                                                                // (Its okay as the db is loaded into connections upon initialization)
+            //        //        List
+            //        //<SqlParameter> DeleteParams = new List<SqlParameter>();
+            //        //        DeleteParams.Add(new SqlParameter("userID", userID)); // deletes existing row
+            //        //        socialDB.UpdateParams(deleteSQL, DeleteParams);
+            //        //        string sql = "INSERT INTO dbo.Like (User_ID,Post_Id) VALUES (@userID,@Post_Id)"; // re adds the row
+            //        //        List<SqlParameter> parameters = new List<SqlParameter>();
+            //        //        parameters.Add(new SqlParameter("userID", userID));
+            //        //        parameters.Add(new SqlParameter("Post_Id", Post_Id));
+            //        //        socialDB.Insert(sql, parameters);
+            //        Liked = true;
+            //    }
+            //else
+            //{
+            //    string sql = "INSERT INTO dbo.Like (User_ID,Post_Id) VALUES (@userID,@Post_Id)"; // inserts into the db if theres not alrdy a column
+            //    List<SqlParameter> parameters = new List<SqlParameter>();
+            //    parameters.Add(new SqlParameter("userID", userID));
+            //    parameters.Add(new SqlParameter("Post_Id", Post_Id));
+            //    socialDB.Insert(sql, parameters);
+            //    Liked = true;
+            //}
+        }
+        catch
+        {
+            await js.InvokeVoidAsync("alert", "Error Please Try again");
+            _navigationManager.NavigateTo($"/post/{Post_Id}",true);
+        }
+
+
+    }
+    async Task HandleUnlike()
+    {
+
+        DBConnection socialDB = new();
+        try
+        {
+            int userID = await uservice.GetUIDSessionAsync();
+            if (userID != 0 && Post_Id != 0)
+            {
+                string DeleteSQL = "DELETE FROM dbo.Likes WHERE User_ID = @userID AND Post_Id = @Post_Id"; //deletes existing row of like
+                List<SqlParameter> DeleteParams = new();
+                DeleteParams.Add(new SqlParameter("userID", userID));
+                DeleteParams.Add(new SqlParameter("Post_Id", Post_Id));
+                socialDB.UpdateParams(DeleteSQL, DeleteParams);
+                Liked = false;
+                NumOfLikes--;
+                socialDB.Close();
+                StateHasChanged();
+                //_navigationManager.NavigateTo($"post/{Post_Id}", true);
+        }
+        }
+        catch
+        {
+            await js.InvokeVoidAsync("alert", "Error Please Try again");
+            _navigationManager.NavigateTo($"/post/{Post_Id}",true);
+        }
+
+
+    }
+    async Task HandleReply()
+    {
+        try
+        {
+            int userID = await uservice.GetUIDSessionAsync();
+            try
+            {
+                if (userID != 0)
+                {
+                    DBConnection socialDB = new();
+                    // get the postID
+                    //create a new row in dbo.Reply with values of UID(Person Logged in) PostID and Reply
+                    string sql = "INSERT INTO dbo.Reply (User_ID,Post_Id,ReplyText) VALUES (@userID,@Post_Id,@ReplyText)";
+                    List<SqlParameter> sqlParameters = new();
+                    sqlParameters.Add(new SqlParameter("userID", userID));
+                    sqlParameters.Add(new SqlParameter("Post_Id", Post_Id));
+                    sqlParameters.Add(new SqlParameter("ReplyText", ReplyText));
+                    socialDB.Insert(sql, sqlParameters);
+                    socialDB.Close();
+                    await js.InvokeVoidAsync("alert", "Reply has been Posted");
+                    socialDB.Close();
+                    _navigationManager.NavigateTo($"post/{Post_Id}", true);
+
+
+                }
+            }
+            catch (Exception)
+            {
+
+                _navigationManager.NavigateTo($"/post/{Post_Id}",true);
+            }
+        }
+        catch (Exception)
+        {
+
+            _navigationManager.NavigateTo("/login");
+        }
+        
+
+        
+
+    }
+    private List<Reply> ListofReplies;
+    async Task GetReplies()
+    {
+        ListofReplies = await Pservice.GetRepliesByPostID(Post_Id);        
+    }
+    private List<Like> ListOfLikes;
+    async Task GetLikes()
+    {
+        ListOfLikes = await Pservice.GetLikesByPostID(Post_Id);
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        await GetPost();
+        await GetReplies();
+        await GetLikes();
+        await CheckExistingLike();
+    }
+}

@@ -1,0 +1,95 @@
+﻿@using Microsoft.AspNetCore.Authorization
+@inject NavigationManager _navigationManager
+@inject Blazored.SessionStorage.ISessionStorageService session
+@using SocialMediaMP.Data
+<div class="top-row pl-4 navbar navbar-dark">
+    <a class="navbar-brand" href="">Harvey Mulroney's Social Media platform'</a>
+    <button class="navbar-toggler" @onclick="ToggleNavMenu">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+</div>
+<CascadingAuthenticationState>
+<AuthorizeView>
+    <Authorized>
+        <ul>
+                <li class="nav-item px-3">
+                    <NavLink class="nav-link" href="feed">
+                        <span class="oi oi-list-plus" aria-hidden="true"></span> Feed
+                    </NavLink>
+                </li>
+            @*<li><a href="/feed">Feed</a></li>*@
+            
+@*                <li class="nav-item px-3">
+                    <NavLink class="nav-link" href="profile">
+                        <span class="oi oi-list-plus" aria-hidden="true"></span> Profile
+                    </NavLink>
+                </li>*@
+                                <li class="nav-item px-3">
+                    <NavLink class="nav-link" href="#"@onclick="() => NavigateToProfileAsync()">
+                        <span class="oi oi-list-plus" aria-hidden="true"></span> Profile
+                    </NavLink>
+                </li>
+
+            
+        </ul>
+    </Authorized>
+    <NotAuthorized>
+        <ul>
+                <li class="nav-item px-3">
+                    <NavLink class="nav-link" href="login">
+                        <span class="oi oi-list-plus" aria-hidden="true"></span> Login
+                    </NavLink>
+                </li>
+                <li class="nav-item px-3">
+                    <NavLink class="nav-link" href="createaccount">
+                        <span class="oi oi-list-rich" aria-hidden="true"></span> Create Account
+                    </NavLink>
+                    </li>
+        </ul>
+    </NotAuthorized>
+</AuthorizeView>
+</CascadingAuthenticationState>
+@*<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
+    <ul class="nav flex-column">
+        <li class="nav-item px-3">
+            <NavLink class="nav-link" href="feed">
+                <span class="oi oi-plus" aria-hidden="true"></span> Feed
+            </NavLink>
+        </li>
+        <li class="nav-item px-3">
+            <NavLink class="nav-link" href="createaccount">
+                <span class="oi oi-list-rich" aria-hidden="true"></span> Create Account
+            </NavLink>
+        </li>
+        <li class="nav-item px-3">
+            <NavLink class="nav-link" href="login">
+                <span class="oi oi-list-plus" aria-hidden="true"></span> Login
+            </NavLink>
+        </li>
+    </ul>
+</div>*@
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    private int UserLoggedInUID;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+    async Task NavigateToProfileAsync()
+    {
+        User u = await session.GetItemAsync<User>("UserLoggedIn");
+        if (u!=null)
+        {
+            UserLoggedInUID = u.User_ID;
+            _navigationManager.NavigateTo($"profile/{UserLoggedInUID}");
+        }
+        else
+        {
+            _navigationManager.NavigateTo("/login");
+        }
+    }
+}

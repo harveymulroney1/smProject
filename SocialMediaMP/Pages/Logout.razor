@@ -1,0 +1,55 @@
+﻿@page "/logout"
+@using Microsoft.AspNetCore.Mvc;
+@using SocialMediaMP.Data;
+@inject NavigationManager _navigationManager
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using System.Data.Common;
+@using SocialMediaMP
+
+@using System.Data.SqlClient;
+@using System.Data;
+@inject Blazored.SessionStorage.ISessionStorageService session 
+@attribute [Authorize]
+@inject SessionAuthenticationProvider AuthStateProvider
+
+
+<AuthorizeView>
+    <NotAuthorized>
+        <h3>You are not authorized,Please Login First</h3>
+    </NotAuthorized>
+    <Authorized>
+        <h3>Logout</h3>
+<div id="otherElements">
+    <button class = btn btn-primary @onclick="UserLogout">Confirm Logout</button>
+
+</div>
+    </Authorized>
+</AuthorizeView>
+
+
+
+
+
+
+
+@code {
+
+
+    public async void UserLogout() // before even showing the option then check if someones logged in
+    {
+          // clears current user & updates the AuthState
+        //var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
+        //await AuthStateProvider.SetAuthenticationStateAsync(new AuthenticationState(anonymous)); // creates a new principal which is empty so the user is no longer
+        // logged in -> changes views to NotAuthorized
+        await session.ClearAsync();
+        await AuthStateProvider.ClearAuthenticationStateAsync();
+        //await session.RemoveItemAsync("UserLoggedIn");
+        StateHasChanged();
+        _navigationManager.NavigateTo("/login",true);
+
+
+    }
+}
+
+

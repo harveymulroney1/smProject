@@ -1,0 +1,49 @@
+﻿@page "/"
+@inject SessionAuthenticationProvider AuthStateProvider
+@inject IJSRuntime js
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+@*@if (_authState != null)
+{
+    @if (_authState.User.Identity.IsAuthenticated)
+    {
+        <p>Hey</p>
+        <h3>Hello, @_authState.User.Identity.Name!</h3>
+        <button class="btn btn-primary" @onclick="DisplayGreetingAlert">Display greet</button>
+    }
+}*@
+
+<AuthorizeView>
+    <Authorized>
+        @*<h3>Hello, authed user @_authState.User.Identity.Name!</h3>*@
+    </Authorized>
+    <NotAuthorized>
+        <h3>Hello guest</h3>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+<AuthorizeView>
+    <Authorized>
+        <br /><br/>
+        <button class="btn btn-primary" @onclick="DisplayGreetingAlert">Display greet</button>
+    </Authorized>
+</AuthorizeView>
+
+@code{
+    [CascadingParameter]
+    private Task<AuthenticationState>authenticationState{ get; set; }
+    private AuthenticationState _authState;
+    //private AuthenticationState _authState;
+
+    private async Task DisplayGreetingAlert()
+    {
+        var authState = await authenticationState;
+        var message = $"Hello {authState.User.Identity.Name}";
+        await js.InvokeVoidAsync("alert", message);
+    }
+   
+}
+
+

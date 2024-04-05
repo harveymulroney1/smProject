@@ -1,0 +1,73 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager _navigationManager
+@using SocialMediaMP.Data
+@inject UserService uservice
+@inject IJSRuntime js
+
+
+<div class="sidebar">
+    <NavMenu />
+</div>
+
+<div class="main">
+    <div class="top-row px-4">
+        <CascadingAuthenticationState>
+            <AuthorizeView>
+            <Authorized>                
+            
+                    <form>
+                        <label for="search">Search for a User (By Username):</label>
+                        @*<input @bind="SearchText" type="search" id="search" name="search">*@
+                        <input @bind="SearchText" placeholder="Search" />
+                        <button type="submit"@onclick="HandleSearch">Submit</button>
+                    </form>
+                    <a href="/" @onclick="LogoutUser">Logout</a>
+            </Authorized>
+            <NotAuthorized>
+            <a href="/login" >Login</a>
+            
+            </NotAuthorized>
+            </AuthorizeView> 
+        </CascadingAuthenticationState>
+
+       
+        
+    </div>
+
+    <div class="content px-4">
+        @Body
+    </div>
+</div>
+
+@code{
+    [Parameter]
+    public string SearchText { get; set; }
+    async void HandleSearch()
+    {
+        if (SearchText!=string.Empty)
+        {
+            int UID = uservice.GetUIDByUN(SearchText);
+            if (UID!=0)
+            {
+                _navigationManager.NavigateTo($"profile/{UID}",true); // redirects to the userpage they r searching for
+            }
+            else
+            {
+                await js.InvokeVoidAsync("alert", "Please enter a valid username");
+            }
+        }
+        else
+        {
+            await js.InvokeVoidAsync("alert", "Please enter a username");
+        }
+        
+    }
+    private void LoginUser()
+    {
+        _navigationManager.NavigateTo("/login");
+    }
+    private void LogoutUser()
+    {
+        _navigationManager.NavigateTo("/logout");
+    }
+}

@@ -1,0 +1,341 @@
+﻿@page "/login"
+@using Microsoft.AspNetCore.Identity;
+@using Microsoft.AspNetCore.Mvc;
+@using SocialMediaMP.Data;
+@inject NavigationManager _navigationManager
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using System.Data.Common;
+@using System.Data.SqlClient;
+@using System.Data;
+@inject Blazored.SessionStorage.ISessionStorageService session // use this
+@using Microsoft.AspNetCore.Components.Authorization
+@*@inject SignInManager<User> SignInManager*@
+@inject SessionAuthenticationProvider AuthStateProvider
+@inject IJSRuntime js
+
+
+
+
+
+@*@if (session.ContainKeyAsync("UserLoggedIn").IsCompletedSuccessfully && session.ContainKeyAsync("UserLoggedIn").Result)
+{
+    <p>You are currently logged in.</p>
+    <button class="btn btn-primary"@onclick="UserLoggedIn">Logout</button>
+}
+else
+{
+    <div id="otherElements">
+        <input @bind="UN" placeholder="Enter Username"></input>
+        <input @bind="rawPW" placeholder="Enter Password"></input>
+        <button class=btn btn-primary @onclick="AttemptLogin">Login</button>
+        <p>@LogInSuccessful</p>
+    </div>
+    
+}*@
+
+
+@*@if (LoggedIn == false)
+{*@
+    <CascadingAuthenticationState>
+    <AuthorizeView>
+
+        <NotAuthorized>
+            <div id="otherElements">
+                <input @bind="UN" placeholder="Enter Username"></input>
+                @if (ShowPassword==true)
+                {
+                    <input type="text" @bind="rawPW" placeholder="Password" required />
+                }
+                else
+                {
+                    <input type="password" @bind="rawPW" placeholder="Password" required />
+                }
+                <input type="checkbox" @onclick="(HandleShowPass)" /> Show Password
+                @*<input @bind="rawPW" placeholder="Enter Password"></input>*@
+                @if (UN!=string.Empty &&rawPW!=string.Empty)
+                {
+                    formIsValid = true;
+                }
+                <button class="btn btn-success" @onclick="AttemptLogin"disabled="@(formIsValid==false)">Login</button>
+                <button class="btn btn-warning" @onclick="HandleAttemptResetPW">Reset Password</button>
+                <button class="btn btn-warning" @onclick="HandleAttemptForgotUN">Forgotten Username?</button>
+
+            <div>
+                
+
+                <div>
+                  
+                        <p>If you dont already have an account <a href="/createaccount">Register here</a></p>
+                </div>
+            </div>
+                @if (AttemptForgotUN==true)
+                {
+                    <input @bind="BCGuess" placeholder="Enter your Backup Code"></input>
+                    if (BCGuess != string.Empty)
+                    {
+                        formIsValidBCEntry = true;
+                    }
+                    <button class="btn btn-success" @onclick="CheckBackupCode" disabled="@(!formIsValidBCEntry)">Confirm</button>
+                    @if (bcCorrect==true)
+                    {
+                        GetForgottenUN(); // calls to get it which outputs it to the user
+                        BCGuess = string.Empty; //clears the input so it doesnt keep calling GetForgottenUN and makes bcCorrect false for the same reason
+                        bcCorrect = false;
+                    }
+                }
+                @if (AttemptResetPW==true)
+                {
+                    
+                    <input @bind="BCGuess" placeholder="Enter your Backup Code"></input>
+                    if (BCGuess!=string.Empty)
+                    {
+                        formIsValidBCEntry = true;
+                    }
+                    <button class="btn btn-success"@onclick="CheckBackupCode"disabled="@(!formIsValidBCEntry)">Confirm</button>
+                    if (bcCorrect == true)
+                    {
+                        <input @bind="newPW" placeholder="New Password"></input>
+                        if (newPW!=string.Empty)
+                        {
+                            formIsValidResetPW = true;
+                        }
+                        <button class="btn btn-success" @onclick="ResetPW" disabled="@(formIsValidResetPW==false)">Confirm</button>
+                    }
+                }
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+    </CascadingAuthenticationState>
+
+@*}
+else
+{   *@
+    <CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            <p>You are currently logged in.</p>
+            <button class="btn btn-primary" @onclick="UserLoggedIn">Logout</button>
+       </Authorized>
+
+    </AuthorizeView>
+    </CascadingAuthenticationState>
+@*}*@
+
+
+
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> authenticationState { get; set; }
+    private AuthenticationState _authState;
+    bool formIsValid;
+    bool formIsValidResetPW;
+    bool formIsValidBCEntry;
+    string BCGuess = string.Empty;
+    string newPW = string.Empty;
+    public string UN = string.Empty;
+    public string rawPW = string.Empty;
+    bool AttemptResetPW = false;
+    bool bcCorrect = false;
+    private ClaimsPrincipal ClaimsUser;
+    bool AttemptForgotUN = false;   
+    bool ShowPassword = false;
+    void HandleAttemptResetPW()
+    {
+        if (AttemptResetPW!=true) // allows for the box to close if they press it again
+        {
+            AttemptResetPW = true;
+        }
+        else
+        {
+            AttemptResetPW = false;
+        }
+    }
+    async void ResetPW()
+    {
+        DBConnection socialDB = new DBConnection();
+        if (bcCorrect==true)
+        {
+
+            List<SqlParameter> ResetPWParams = new();
+            if (newPW!=string.Empty)
+            {
+                string newHashedPW = User.HashPassword(newPW);
+                string sql = "UPDATE dbo.UserAccount SET UPassword = @newHashedPW WHERE Backupcode = @BCGuess";
+                ResetPWParams.Add(new SqlParameter("newHashedPW", newHashedPW));
+                ResetPWParams.Add(new SqlParameter("BCGuess", BCGuess));
+                socialDB.UpdateParams(sql, ResetPWParams);
+                await js.InvokeVoidAsync("alert", "Password has been updated, Please Login");
+            }
+            else // dont need as verified elsewhere -> just in case ig
+            {
+                string updatefailed = "Failed please try again";
+                await js.InvokeVoidAsync("alert", updatefailed);
+                _navigationManager.NavigateTo("/login",true);
+            }
+        }
+        socialDB.Close(); // should need this to prevent sql injection
+
+
+
+        // enter BackupCode 
+    }
+    void HandleShowPass()
+    {
+
+        if (ShowPassword != true) // checks if not already showing pass
+        {
+            ShowPassword = true;
+        }
+        else
+        {
+            ShowPassword = false;
+        }
+
+    }
+    void HandleAttemptForgotUN()
+    {
+        if (AttemptForgotUN!=true)
+        {
+            AttemptForgotUN = true;
+        }
+        else
+        {
+            AttemptForgotUN = false;
+        }
+        
+    }
+    async void GetForgottenUN()
+    {
+        DBConnection db = new DBConnection();
+
+            if (BCGuess!=null)
+            {
+                string BCToFind = BCGuess;
+                string sql = "SELECT Username FROM UserAccount WHERE Backupcode = @BCToFind";
+                List<SqlParameter> UNFindParams = new();
+                UNFindParams.Add(new SqlParameter("BCToFind", BCToFind));
+                DataTable results = db.SelectParameters(sql, UNFindParams);
+                string UN = (results.Rows[0]["Username"]).ToString();
+                await js.InvokeVoidAsync("alert", $"Your Username is {UN} Please Login");
+                BCGuess = string.Empty;
+
+            }
+        
+
+
+
+        
+    }
+    async Task CheckBackupCode()
+    {
+        if (BCGuess!=string.Empty)
+        {
+            if (AuthenticationChecks.BackupCodeCheck(BCGuess)==true)
+            {
+                bcCorrect = true;
+            }
+            else
+            {
+                bcCorrect = false;
+                string updatefailed = "Failed please try again";
+                await js.InvokeVoidAsync("alert", updatefailed);
+                _navigationManager.NavigateTo("/login", true);
+            }
+        }
+
+    }
+    //protected override async Task OnInitializedAsync()
+    //{
+    //    //if (authenticationState!=null)
+    //    //{
+
+    //    //}
+    //    //if (await session.ContainKeyAsync("UserLoggedIn") == false)
+    //    //{
+    //    //    // user is not logged in, do something...
+    //    //    LoggedIn = false;
+    //    //}
+    //    //else
+    //    //{
+    //    //    LoggedIn = true;
+    //    //    // user is logged in, do something else...
+    //    //}
+    //    //await GetAuthenticationState();
+    //    //if (ClaimsUser.Identity.IsAuthenticated)
+    //    //{
+    //    //    _navigationManager.NavigateTo("/feed");
+    //    //}
+    //}
+    //public async Task CheckLoggedIn()
+    //{
+    //    //bool isAuthenticated = await session.ContainKeyAsync("UserLoggedIn");
+    //    if (await session.ContainKeyAsync("UserLoggedIn") == false)
+    //    {
+    //        // user is not logged in, do something...
+    //        LoggedIn = false;
+    //    }
+    //    else
+    //    {
+    //        LoggedIn = true;
+    //        // user is logged in, do something else...
+    //    }
+    //}
+
+    public async void UserLoggedIn()
+    {
+
+        await Task.Delay(3000);
+        _navigationManager.NavigateTo("/logout", true);
+    }
+    public async Task AttemptLogin() // need to first check if user is currently logged in -> if they are then change the view they are shown
+    {
+        await session.ClearAsync();
+        User user = new User(); // so can type all the info in then create new userclass using these
+        // was just var user
+
+        string HashPW = Data.User.HashPassword(rawPW);
+        //string HashPW = rawPW;
+        if (Data.AuthenticationChecks.Login(UN,HashPW) == true) 
+        {
+            // could use the uservice to get UID by UN saves all this stuff
+
+
+            DBConnection DBS = new DBConnection();
+            // need to make it to add current user logged in to the session variable
+            string sql = "Select User_ID FROM dbo.UserAccount WHERE Username = @UN AND UPassword = @HashPW"; // finds the info needed to store
+            List<SqlParameter> paramlist = new List<SqlParameter>();
+            paramlist.Add(new SqlParameter("@UN", UN));
+            paramlist.Add(new SqlParameter("@HashPW", HashPW));
+            DataTable results = DBS.SelectParameters(sql, paramlist);
+            user.User_ID = Convert.ToInt32(results.Rows[0]["User_ID"]);
+            user.UserName = UN;
+
+            
+
+            await session.SetItemAsync<User>("UserLoggedIn", user);
+            //await AuthStateProvider.GetAuthenticationStateAsync(); // sets authentication as this new user
+            await AuthStateProvider.RefreshAuthState(); // makes it get current auth state and auths the user when they log in
+            
+            await js.InvokeVoidAsync("alert", "Sucess");
+            //StateHasChanged(); // re renders the application
+            
+            //testing
+
+            _navigationManager.NavigateTo("/feed",true);
+        }
+
+        else
+        {
+            var message = "Login unsuccessful Try Again";
+            await js.InvokeVoidAsync("alert", message);
+            UN = string.Empty;
+            rawPW = string.Empty;
+            //LogInSuccessful = "Login unsuccessful try again";
+            _navigationManager.NavigateTo("/login",true);
+        }
+
+
+    }
+}
+

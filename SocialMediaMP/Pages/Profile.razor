@@ -1,0 +1,423 @@
+﻿@using SocialMediaMP.Data
+@inject NavigationManager _navigationManager
+@inject Blazored.SessionStorage.ISessionStorageService session
+@using System.Data.SqlClient
+@using System.Data;
+@using System.ComponentModel;
+@using Microsoft.AspNetCore.WebUtilities
+@inject SocialNetwork sn
+@inject UserService uservice
+@inject PostService pservice
+@page "/profile/{PageuserID:int}"
+
+
+<AuthorizeView>
+    <Authorized>
+@if (LoggedInUID!=PageuserID) // Checks this isnt the userloggedins profile 
+{
+    if (uprofile != null) // checks if its a profile
+    {
+        <p><strong>@uprofile.UserName profile</strong></p>
+        <p>@uprofile.Email</p>
+        <p>@uprofile.Bio</p>
+                @if (ExistingConnection)
+                {
+                    <div>
+                        <button class="btn btn-danger" @onclick="DeleteConnection">Delete Connection</button>
+                    </div>
+                }
+                @if (!ExistingConnection)
+                {
+                    <div>
+                        <button class="btn btn-light" @onclick="AddConnection">Add Connection</button>
+                    </div>
+                }
+
+    }
+    else
+    {
+        @ErrorNoPage
+    }
+}
+        @if (LoggedInUID == PageuserID) // show view for their own profile -> edit etc
+    {
+            <p>This is your profile</p>
+            <p><strong>@uprofile.UserName profile</strong></p>
+            <p>@uprofile.Email</p>
+            <p>@uprofile.Bio</p>
+            <div>
+                <button class="btn btn-danger" @onclick="EditProfile">Edit Profile</button>
+            </div>
+    }
+    <button class="btn btn-primary" @onclick="GoToConnections">See connections</button>
+
+    <h2>@uprofile.UserName Post's</h2>
+        <table class="table">
+        <thead>
+            <tr>
+                <th>Caption</th>
+                    <th>Text  </th>
+                    <p>Date Uploaded V</p>
+
+            </tr>
+        </thead>
+        <tbody>
+            @if (ProfilesPosts!=null)
+                {
+                    @foreach (Post post in ProfilesPosts)
+                    {
+
+                        <tr>
+
+                            <td><a href="post/@post.PostId">@post.PostCaption</a></td>
+                            <td><a href="post/@post.PostId">@post.PostText</a></td>
+                            
+
+                        </tr>
+                    }
+                }
+
+
+        
+            </tbody>
+        </table>
+    </Authorized>
+    <NotAuthorized>
+    @if (uprofile!=null) // checks if page exists -> not logged in Users
+    {
+    <p><strong>@uprofile.UserName profile</strong></p>
+    <p>@uprofile.Email</p>
+    <p>@uprofile.Bio</p>
+        <p><strong><a href="login"></a>Login to view more!</strong></p>
+    }
+    else
+    {
+        @ErrorNoPage
+    }
+    </NotAuthorized>
+</AuthorizeView>
+
+
+
+
+
+
+@*check if logged in then show this*@
+
+@code {
+    // (dont show add friend etc instead show edit profile etc) 
+    //check if its user logged ins profile
+    string ErrorNoPage = "ERROR Page doesn't exist";
+    bool ExistingConnection = false;
+    List<int> UConnections = new List<int>();
+    [Parameter]
+    public int PageuserID { get; set; } 
+    string profileUN;
+    string Bio;
+    string EmailAddress;
+    //int User_ID = PageuserID;
+    User uprofile = new User();
+    int LoggedInUID = 0;
+    List<Post> ProfilesPosts;
+    void GoToConnections()
+    {
+        _navigationManager.NavigateTo($"/profile/{PageuserID}/connections");
+    }
+    void EditProfile()
+    {
+        _navigationManager.NavigateTo("/profile/edit");
+    }
+    protected override async Task OnInitializedAsync()
+    {
+
+        StateHasChanged();
+        //PageuserID = -1432; // means it doesnt accidently think its same user logged in random number unlikely to be guessed
+        //int results = await GetUIDfromSesionAsync();
+        // await GetProfileInfo();
+
+
+        //await ViewCheckOwnProfile();
+        //Uri uri = new Uri(_navigationManager.Uri);
+        //string userIDString = System.Web.HttpUtility.ParseQueryString(uri.Query).Get("PageuserID"); // gets the pageUserID
+        //if (userIDString != null)
+        //{
+        //    if (int.TryParse(userIDString, out int userIDValue))
+        //    {
+        //        PageuserID = userIDValue;
+        //        //User user = await uservice.GetUserByID(PageuserID);
+        //        uprofile = await uservice.GetUserByID(PageuserID);
+
+        //    }
+        //var query = QueryHelpers.ParseQuery(uri.Query);
+        //if (query.TryGetValue("PageuserID", out var userIDString) && int.TryParse(userIDString, out int userIDValue))
+        //    PageuserID = userIDValue;
+        //if (PageuserID! > 0)
+        //{
+        //    _navigationManager.NavigateTo("/");
+
+        //}
+        //else
+        //{
+        //    uprofile = await uservice.GetUserByID(PageuserID);
+        //}
+
+        //if (uprofile == null)
+        //{
+        //    uprofile = await uservice.GetUserByID(PageuserID);
+        //}
+
+    }
+
+    protected async Task<int> GetUIDfromSesionAsync()
+    {
+        User userloggedin = await session.GetItemAsync<User>("UserLoggedIn");
+        if (userloggedin != null)
+        {
+            int UID = userloggedin.User_ID;
+            await Task.Delay(10);
+            return UID;
+        }
+        else
+        {
+            await Task.Delay(10);
+            return -1; // if user isnt logged in so it returns -1
+        }
+    }
+
+
+
+
+
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+
+        //PageuserID = -1432; // means it doesnt accidently think its same user logged in random number unlikely to be guessed
+        //await GetProfileInfo();
+        //results = await GetUIDfromSesionAsync();
+        if (firstRender) // not being called
+        {
+            PageuserID = -1432; // means it doesnt accidently think its same user logged in random number unlikely to be guessed
+            await GetProfileInfo();
+            LoggedInUID = await GetUIDfromSesionAsync();
+            if (LoggedInUID !=-1) // checks if user is logged in so it can check if theres an existing connection // could check like .IsAuthenticated?
+            {
+                List<int> UserConnections = sn.GetConnectionsByID(LoggedInUID); 
+                if (UserConnections != null)
+                {
+                    if (UserConnections.Contains<int>(PageuserID))  // checks for existing connections so it shows a diff button if existing connection
+                    {
+                        ExistingConnection = true;
+                    }
+                    else
+                    {
+                        ExistingConnection = false; // no existing connection so shows AddFriend
+                    }
+
+                }
+                ProfilesPosts = await pservice.GetPostsByUID(PageuserID);
+                ProfilesPosts.Reverse();
+            }
+
+            
+
+            //LoggedInUID = await GetUIDfromSesionAsync();
+            //if (LoggedInUID!=0)
+            //{
+
+            //    UConnections = sn.GetConnectionsByID(LoggedInUID);
+            //    sn.Connections[LoggedInUID]
+            //}
+            StateHasChanged();
+
+            //        Console.WriteLine("OnAfterRenderAsync called.");
+            //    await Task.Delay(1000);
+            //    // Call your JavaScript interop method here
+            //    Uri uri = new Uri(_navigationManager.Uri);
+            //    string userIDString = System.Web.HttpUtility.ParseQueryString(uri.Query).Get("PageuserID"); // gets the pageUserID
+            //    if (int.TryParse(userIDString, out int userIDValue))
+            //    {
+            //        PageuserID = userIDValue;
+            //        //User user = await uservice.GetUserByID(PageuserID);
+            //        uprofile =  await uservice.GetUserByID(PageuserID);
+            //        if (uprofile==null)
+            //        {
+            //            uprofile = await uservice.GetUserByID(userIDValue);
+            //        }
+            //    }
+        }
+        //Uri uri = new Uri(_navigationManager.Uri);
+        //string userIDString = System.Web.HttpUtility.ParseQueryString(uri.Query).Get("PageuserID"); // gets the pageUserID
+        //PageuserID = Convert.ToInt32(uri);
+        //uprofile = await uservice.GetUserByID(PageuserID);
+        //if (int.TryParse(userIDString, out int userIDValue)) 
+        //{
+        //    PageuserID = userIDValue;
+        //    //User user = await uservice.GetUserByID(PageuserID);
+        //    uprofile =  await uservice.GetUserByID(PageuserID);
+        //    if (uprofile==null)
+        //    {
+        //        uprofile = await uservice.GetUserByID(userIDValue);
+        //    }
+        //}
+
+        //if (await session.ContainKeyAsync("UserLoggedIn") == true && PageuserID == -1432) //redirects to own profile by default ? split into segments n check if anything there
+        // {
+        //     User u = await session.GetItemAsync<User>("UserLoggedIn");
+        //     if (u!=null)
+        //     {
+        //         int sessionUID = u.User_ID; // doesnt need to check if null as it already checks in the if statement
+        //         _navigationManager.NavigateTo($"profile/{sessionUID}");
+        //     }
+        //     else
+        //     {
+        //         // user not logged in???
+        //         _navigationManager.NavigateTo("/login");
+        //     }
+
+        // }
+
+        return;
+    }
+
+    public async Task GetProfileInfo()
+    {
+        Uri uri = new Uri(_navigationManager.Uri);       
+        string UIDstring = uri.Segments[2].ToString();
+        if (UIDstring != "/")
+        {
+            if (int.TryParse(UIDstring, out int userIDValue))
+            {
+                PageuserID = userIDValue;
+                List<SqlParameter> parameters = new List<SqlParameter>();
+                string sql = "Select Username,Bio,EmailAddress FROM UserAccount WHERE User_ID = @PageuserID"; // WORKS
+                parameters.Add(new SqlParameter("PageuserID", PageuserID));
+                DBConnection socialDB = new DBConnection();
+                DataTable results = socialDB.SelectParameters(sql, parameters);
+                if (results.Rows.Count > 0)
+                {
+                    DataRow row = results.Rows[0];
+                    string username = row["Username"].ToString();
+                    string Email = row["EmailAddress"].ToString();
+                    string bio = row["Bio"].ToString();
+                    uprofile.User_ID = PageuserID;
+                    uprofile.UserName = username;
+                    uprofile.Bio = bio;
+                    uprofile.Email = Email;
+                    //string profilePic = row["ProfilePic"].ToString(); only need if implemented
+                }
+
+            }
+
+        }
+    }
+
+       
+            //if (int.TryParse(userIDString, out int userIDValue)) old stuff didnt work with userIDString -> string userIDString = System.Web.HttpUtility.ParseQueryString(uri.Query).Get("PageuserID");
+        //{
+        //    PageuserID = userIDValue;
+        //    List<SqlParameter> parameters = new List<SqlParameter>();
+        //    string sql = "Select Username,Bio,EmailAddress FROM UserAccount WHERE User_ID = @PageuserID";
+        //    parameters.Add(new SqlParameter("User_ID", PageuserID));
+        //    DBConnection socialDB = new DBConnection();
+        //    DataTable results = socialDB.SelectParameters(sql, parameters);                       
+        //    if (results.Rows.Count>0)
+        //    {
+        //        DataRow row = results.Rows[0];
+        //        string username = row["Username"].ToString();
+        //        string Email = row["EmailAddress"].ToString();
+        //        string bio = row["Bio"].ToString();
+        //        uprofile.UserName = username;
+        //        uprofile.Bio = bio;
+        //        uprofile.Email = Email;
+        //        //string profilePic = row["ProfilePic"].ToString(); only need if implemented
+        //    }
+
+
+
+
+
+        
+
+
+    
+    //protected override async Task OnInitializedAsync()
+    //{
+
+
+    //    //profileUN = await uservice.GetUN(); // UID is the page currently on
+    //}
+    async void AddConnection()
+    {
+        
+        int fromUser = 0; // this is us
+        int toUser = 0; // the user to be added -> follow them?
+        SocialNetwork sn = new SocialNetwork();
+        User user = await session.GetItemAsync<User>("UserLoggedIn");
+        try
+        {
+            if (user!=null)
+            {
+                fromUser = user.User_ID;
+                toUser = PageuserID;
+                
+            }
+            
+            // toUser = the page we are currently ons userID
+            if (fromUser!=0 && toUser!=0)
+            {
+                await sn.AddConnection(fromUser, toUser);
+                _navigationManager.NavigateTo($"/profile/{PageuserID}", true);
+                
+            }
+           
+        }
+
+        catch 
+        {
+            _navigationManager.NavigateTo($"/profile/{PageuserID}", true);
+        }
+
+
+
+
+        
+    }
+    async void DeleteConnection()
+    {
+        int fromUser = 0; // this is us
+        int toUser = 0; // the user to be added -> follow them?
+        SocialNetwork sn = new SocialNetwork();
+        
+        try
+        {
+            User user = await session.GetItemAsync<User>("UserLoggedIn");
+            if (user != null)
+            {
+                fromUser = user.User_ID;
+                toUser = PageuserID;
+                if (fromUser != 0 && toUser != 0)
+                {
+                    await sn.DeleteConnection(fromUser, toUser);
+                    _navigationManager.NavigateTo($"/profile{PageuserID}", true);
+                }
+
+            }
+
+            // toUser = the page we are currently ons userID
+
+
+        }
+
+        catch
+        {
+            _navigationManager.NavigateTo($"/profile{PageuserID}", true);
+        }
+
+
+
+
+
+    }
+}

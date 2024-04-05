@@ -1,0 +1,356 @@
+﻿
+@using SocialMediaMP.Data
+@using System.Data.Sql
+@using System.Data.SqlClient;
+@using System.Data;
+@using Blazored.SessionStorage;
+@using System.Text.RegularExpressions;
+@inject Blazored.SessionStorage.ISessionStorageService session
+@inject NavigationManager _navigationManager
+@inject IJSRuntime js
+@page "/profile/edit"
+
+@attribute [Authorize]
+
+
+    
+    <AuthorizeView>
+        <Authorized>
+        <h3>Edit: </h3>
+            <button class="btn-group" @onclick="() => { choicealter = 1; }">Username</button>
+            <button class="btn-group" @onclick="() => { choicealter = 2; }">Password</button>
+            <button class="btn-group" @onclick="() => { choicealter = 3; }">Email Address</button>
+            <button class="btn-group" @onclick="() => { choicealter = 4; }">Bio</button>
+            <button class="btn-group" @onclick="() => { choicealter = 5; }">Retrieve Backup Code</button>
+            @if (choicealter==1) // change UN
+            {
+            <input type="email" @bind="currentEM" placeholder="Enter Email Address"></input>
+            <input @bind="rawPW" placeholder="Enter your Password"></input>
+            <input @bind="newUN" placeholder="Enter Desired Username"></input>
+            if (currentEM!=string.Empty && rawPW!=string.Empty&&newUN!=string.Empty)
+            {
+                formIsValidchoice1 = true;
+            }
+            <button class="btn-outline-success" @onclick="() => UserAlter(choicealter=1)"disabled="@(!formIsValidchoice1)">Confirm</button>
+            
+            }
+
+            @if (choicealter==2) // change PW
+            {
+            <input type="email" @bind="currentEM" placeholder="Enter Email Address"></input>
+            <input @bind="rawPW" placeholder="Enter your current Password"></input>
+            <input @bind="newrawPW" placeholder="Enter new Password"></input>
+            if (currentEM!=string.Empty && rawPW!=string.Empty&&newrawPW!=string.Empty)
+            {
+                formIsValidchoice2 = true;
+            }
+            <button class="btn-outline-success" @onclick="() => UserAlter(choicealter=2)" disabled="@(!formIsValidchoice2)">Confirm</button>
+            
+            }
+
+            @if (choicealter==3) // EM change
+            {
+            <input type="email" @bind="currentEM" placeholder="Enter Email Address"></input>
+            <input @bind="rawPW" placeholder="Enter your Password"></input>
+            <input type="email" @bind="newEM" placeholder="Enter new Email Address"></input>
+            if (currentEM != string.Empty && rawPW != string.Empty && newEM != string.Empty && Regex.IsMatch(newEM, @"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$"))
+            {
+                formIsValidchoice3 = true;
+            }
+            if (!Regex.IsMatch(newEM, @"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$"))
+            {
+                <p>Please enter a valid email address</p>
+            }
+        <button class="btn-outline-success" @onclick="() => UserAlter(choicealter=3)" disabled="@(!formIsValidchoice3)">Confirm</button>
+            
+            }
+
+            @if (choicealter==4) // Bio change
+            {
+            <input type="email" @bind="currentEM" placeholder="Enter Email Address"></input>
+            <input @bind="rawPW" placeholder="Enter your Password"></input>
+            <input @bind="newBio" placeholder="New Bio"></input>
+            if (currentEM!=string.Empty && rawPW!=string.Empty&&newBio!=string.Empty)
+            {
+                formIsValidchoice4 = true;
+            }
+        <button class="btn-outline-success" @onclick="() => UserAlter(choicealter=4)" disabled="@(!formIsValidchoice4)">Confirm</button>
+            
+            }
+
+            @if (choicealter==5) // get Backup Code
+            {
+            <input type="email" @bind="currentEM" placeholder="Enter Email Address"></input>
+            <input @bind="rawPW" placeholder="Enter your Password"></input>
+            if (currentEM!=string.Empty && rawPW!=string.Empty)
+            {
+                formIsValidchoice5 = true;
+            }
+            <button class="btn-outline-success" @onclick="() => UserAlter(choicealter=5)" disabled="@(!formIsValidchoice5)">Confirm</button>
+            
+            
+            }
+        </Authorized>
+        <NotAuthorized>
+                    <p>You are not logged in.</p>
+@*    <button class="btn-danger"@onclick="UserNotLoggedInLogin">Click here to Login</button>
+    <button class="btn-danger"@onclick="UserNotLoggedInRegister"><a>href="/createaccount"</a>Click here to register a new account</button>*@
+        <p><strong><a>href="/login"</a>Click here to Login</strong></p>
+        <p><strong><a>href="/createaccount"</a>Click here to register a new account</strong></p>
+        </NotAuthorized>
+    </AuthorizeView>
+    
+
+
+
+
+
+
+@code {
+    public int choicealter = 0;
+    string rawPW = string.Empty;    
+    string currentEM = string.Empty;
+    string newEM = string.Empty;
+    string currentUN = string.Empty;
+    string newUN = string.Empty;
+    string newrawPW = string.Empty;
+    string CHANGEerror = "Incorrect Email or Password";
+    bool formIsValidchoice1 = false;
+    bool formIsValidchoice2 = false;
+    bool formIsValidchoice3 = false;
+    bool formIsValidchoice4 = false;
+    bool formIsValidchoice5 = false;
+    string newBio;
+    int UID;
+    string UpdatedOutput = "Updated";
+    private bool hasExecuted; // makes sure only executed once after rendered
+                              //public int UID { get; set; }
+    void UserNotLoggedInLogin()
+    {
+        _navigationManager.NavigateTo("/login",true);
+
+    }
+    void UserNotLoggedInRegister()
+    {
+        _navigationManager.NavigateTo("/createaccount",true);
+
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        //if (firstRender && !hasExecuted)
+        //{
+        //    hasExecuted = true;
+        //    if (await session.ContainKeyAsync("UserLoggedIn") == false)
+        //    {
+        //        // user is not logged in, do something...
+        //        UserNotLoggedIn = true;
+        //    }
+        //    else
+        //    {
+        //        UserNotLoggedIn = false;
+        //        // user is logged in, do something else...
+        //    }
+        //    // Call your JavaScript interop code here
+        //}
+        //User user = await session.GetItemAsync<User>("UserLoggedIn");
+        //if (user != null)
+        //{
+        //    UID = user.User_ID;
+        //}
+    }
+    //protected override async Task OnInitializedAsync()
+    //{
+
+    //}
+    public async Task UserAlter(int choicealter)
+    {
+
+
+
+        User u = new User();
+
+
+        DBConnection SocialDB = new DBConnection();
+        u = await session.GetItemAsync<User>("UserLoggedIn");
+
+        if (u!=null)
+        {
+            UID = u.User_ID;
+        }
+        // WriteLine("What would you like to alter 1.Username 2.Password 3.Email \n OR \n 4. Check BackupCode");
+
+        switch (choicealter) // none of this allows for incorrect cases -> do it in Authentication??? / needs to check if it exists
+        {
+            case 1: // username
+                List<SqlParameter> altparamsUN = new List<SqlParameter>();
+                //Write("Enter your email address: ");
+
+                //  Write("Enter your password: ");
+                //string rawPW = ReadLine();
+                string hPW = User.HashPassword(rawPW); // hashes password so it can be compared
+                if (AuthenticationChecks.UserAlterCheck(currentEM, hPW) == true && AuthenticationChecks.CheckUN(newUN)==false) // checks for duplicates
+                {
+                    //  Write("Enter desired username: ");
+                    //string newUN = ReadLine();
+                    string sqlUN = "UPDATE dbo.UserAccount SET Username = @newUN WHERE EmailAddress = @currentEM AND UPassword = @hPW"; // need to go back and check if its changed / if email address exists in DB with authentication
+                    altparamsUN.Add(new SqlParameter("newUN", newUN));
+                    altparamsUN.Add(new SqlParameter("currentEM", currentEM)); //fixed by declaring the scalar variables in the "" as the same as the value after it
+                    altparamsUN.Add(new SqlParameter("hPW", hPW));
+                    SocialDB.UpdateParams(sqlUN, altparamsUN);
+
+                    //SocialNetwork.UpdateUserUN(UID, newUN); // updates social network with newUN so everything is correct
+                    await js.InvokeVoidAsync("alert", UpdatedOutput);
+                    _navigationManager.NavigateTo($"/profile/{UID}", true);
+
+
+                }
+                else
+                {
+                    if (AuthenticationChecks.CheckUN(newUN) == true) // changes output if so -> says existing EM
+                    {
+                        await js.InvokeVoidAsync("alert", "Existing Username, Try Again");
+                        _navigationManager.NavigateTo("/profile/edit", true);
+                    }
+                    await js.InvokeVoidAsync("alert", CHANGEerror);                    
+                    _navigationManager.NavigateTo("/profile/edit", true);
+                }
+                break;
+            case 2:
+                List<SqlParameter> altparamsPW = new List<SqlParameter>(); // changing PW
+                // Write("Enter email address");
+                //string UEM = ReadLine();
+                //  Write("Enter your current pass");
+                //   string oldPW; = ReadLine();
+                string HashedOldPW = User.HashPassword(rawPW);
+                if (AuthenticationChecks.UserAlterCheck(currentEM, HashedOldPW) == true) // checks if the info is correct then carrys on and update
+                {
+                    //      Write("Enter new password");
+                    // string newPW // the input
+                    string newHashPW = User.HashPassword(newrawPW);
+                    string sqlPW = "UPDATE dbo.UserAccount SET UPassword = @newHashPW Where UPassword = @HashedOldPW AND EmailAddress = @currentEM"; // could do with email or username check if exists on same row for oldPW
+                    altparamsPW.Add(new SqlParameter("newHashPW", newHashPW));
+                    altparamsPW.Add(new SqlParameter("HashedOldPW", HashedOldPW));
+                    altparamsPW.Add(new SqlParameter("currentEM", currentEM));
+                    SocialDB.UpdateParams(sqlPW, altparamsPW);
+                    await js.InvokeVoidAsync("alert", UpdatedOutput);
+                    _navigationManager.NavigateTo($"/profile/{UID}", true);
+
+                }
+
+                else
+                {
+                    await js.InvokeVoidAsync("alert", CHANGEerror);
+                    _navigationManager.NavigateTo("/profile/edit", true);
+                }
+                break;
+            case 3: // change email
+                List<SqlParameter> altparamsEM = new List<SqlParameter>();
+                //Write("Current email: ");
+                //string oldEM = ReadLine();
+                //Write("Enter password");
+                //string rawUPW = ReadLine();
+                string UPW = User.HashPassword(rawPW); // hashes raw upass
+                if (AuthenticationChecks.UserAlterCheck(currentEM, UPW) == true &&AuthenticationChecks.CheckEM(newEM)==false) //checks if the info is correct then carrys on and update
+                {
+                    //Write("New Email: ");
+                    //string newEM = ReadLine();
+                    string sqlEM = "UPDATE dbo.UserAccount SET EmailAddress = @newEM Where EmailAddress = @currentEM AND UPassword = @UPW";
+                    altparamsEM.Add(new SqlParameter("newEM", newEM));
+                    altparamsEM.Add(new SqlParameter("currentEM", currentEM));
+                    altparamsEM.Add(new SqlParameter("UPW", UPW));
+                    SocialDB.UpdateParams(sqlEM, altparamsEM);
+                    // doesnt need to be updated SocialNetwork.UpdateUserEM(UID, newEM); // updates the socialnetwork with the new emailaddress so its all up to date
+                    await js.InvokeVoidAsync("alert", UpdatedOutput);
+                    _navigationManager.NavigateTo($"/profile/{UID}", true);
+
+                }
+                else
+                {
+                    if (AuthenticationChecks.CheckEM(newEM) == true) // changes output if so -> says existing EM
+                    {
+                        await js.InvokeVoidAsync("alert", "Existing Email, Try Again");
+                        _navigationManager.NavigateTo("/profile/edit", true);
+                    }
+                    else
+                    {
+                        await js.InvokeVoidAsync("alert", CHANGEerror);
+                        _navigationManager.NavigateTo("/profile/edit", true);
+                    }
+
+                }
+
+
+                break;
+            case 4:
+                List<SqlParameter> altparamsBIO = new List<SqlParameter>();
+                //Write("Current email: ");
+                //string oldEM = ReadLine();
+                //Write("Enter password");
+                //string rawUPW = ReadLine();
+
+                string hashedPW = User.HashPassword(rawPW); // hashes raw upass
+                if (AuthenticationChecks.UserAlterCheck(currentEM, hashedPW) == true) //checks if the info is correct then carrys on and update
+                {
+                    //Write("New Email: ");
+                    //string newEM = ReadLine();
+                    string sqlEM = "UPDATE dbo.UserAccount SET Bio = @newBio Where EmailAddress = @currentEM AND UPassword = @hashedPW";
+                    altparamsBIO.Add(new SqlParameter("newBio", newBio));
+                    altparamsBIO.Add(new SqlParameter("currentEM", currentEM));
+                    altparamsBIO.Add(new SqlParameter("hashedPW", hashedPW));
+                    SocialDB.UpdateParams(sqlEM, altparamsBIO);
+                    // doesnt need to be updated SocialNetwork.UpdateUserEM(UID, newEM); // updates the socialnetwork with the new emailaddress so its all up to date
+                    // call to LoadUsers??
+                    await js.InvokeVoidAsync("alert", UpdatedOutput);
+                    _navigationManager.NavigateTo($"/profile/{UID}", true);
+
+                }
+                else
+                {
+                    await js.InvokeVoidAsync("alert", CHANGEerror);
+                    _navigationManager.NavigateTo("/profile/edit", true);
+                }
+                break;
+            case 5:
+                List<SqlParameter> altparamsBC = new List<SqlParameter>();
+                //Write("Enter EmailAddress");
+                //string CEM = ReadLine();
+                //string rawUPass = ReadLine();
+                string UPass = User.HashPassword(rawPW);
+
+                if (AuthenticationChecks.UserAlterCheck(currentEM, UPass) == true) // checks if the info is correct then carrys on and update
+                {
+                    string sqlBC = "Select Backupcode FROM dbo.UserAccount WHERE EmailAddress = @currentEM AND UPassword = @UPass"; // finds backup code where this exists
+                    altparamsBC.Add(new SqlParameter("UPass", UPass));
+                    altparamsBC.Add(new SqlParameter("currentEM", currentEM));
+                    DataTable BC = SocialDB.SelectParameters(sqlBC, altparamsBC);
+                    if (BC != null)
+                    {
+                        string backupCodeString = BC.Rows[0]["Backupcode"].ToString();
+                        if (Int64.TryParse(backupCodeString, out long _retrievedBC)) // tries to parse the string and then outputs a 'long' value as Backupcode is 10 digits
+                        {
+                            await js.InvokeVoidAsync("alert", $"Your Backup Code is {_retrievedBC}");
+                            
+                            _navigationManager.NavigateTo($"/profile/{UID}", true);
+                        }
+                        else
+                        {
+                            await js.InvokeVoidAsync("alert", "There was an issue retrieving your Backup Code. Please try again later.");
+                        }
+                    }
+                    
+                }
+                else
+                {
+                    await js.InvokeVoidAsync("alert", CHANGEerror);
+                    _navigationManager.NavigateTo("/profile/edit", true);
+                }
+                break;
+
+            default:
+
+                break;
+        }
+
+
+    }
+}

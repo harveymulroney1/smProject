@@ -1,0 +1,287 @@
+﻿@page "/feed"
+@using SocialMediaMP.Data
+@inject PostService PService
+@inject NavigationManager _navigationManager
+@inject Blazored.SessionStorage.ISessionStorageService session
+@using System.Data.SqlClient
+@using System.Data;
+@inject IJSRuntime js
+@inject SocialNetwork sn
+@inject UserService uservice
+@attribute [Authorize]
+
+
+
+@if (PService == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div>
+        <button class="btn alert" @onclick="CPostClicked"><img src=@CreatePostIcon/></button>
+
+    </div>
+    @if (CreatePostClicked == true)
+    {
+        <div>
+            <input @bind="PostCap" placeholder="Caption"></input>
+            <input @bind="PostText" placeholder="Contents"></input>
+                @if (PostCap!=string.Empty &&PostText!=string.Empty)
+                {
+                    formIsValid = true;
+                }
+            <button class="btn btn-success" @onclick="CreatePost"disabled="@(!formIsValid)">Post</button>
+            <p>@PostedYN</p>
+            
+
+        </div>
+    }
+
+}
+    @if (FriendsPosts != null && FriendsPosts.Count > 0)
+    {
+        <h2>Yours and Your Connections Posts</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Caption</th>
+                    <th>Text</th>
+                    <th>Author</th>
+
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (Post post in FriendsPosts)
+                {
+
+                    <tr>
+
+                        <td><a href="post/@post.PostId">@post.PostCaption</a></td>
+                        <td><a href="post/@post.PostId">@post.PostText</a></td>
+                        <td><a href="profile/@post.User_ID">@post.AuthorUN</a></td>
+
+                    </tr>
+                }
+
+                
+            </tbody>
+        </table>
+        @if (SuggestedPosts != null && SuggestedPosts.Count > 0)
+        {
+            <h3>Suggested Posts</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Caption</th>
+                        <th>Text</th>
+                        <th>Author</th>
+
+                    </tr>
+                </thead>
+                <tbody>
+
+                    @foreach (Post p in SuggestedPosts)
+                    {
+                        <tr>
+                            <td><a href="post/@p.PostId">@p.PostCaption</a></td>
+                            <td><a href="post/@p.PostId">@p.PostText</a></td>
+                            <td><a href="profile/@p.User_ID">@p.AuthorUN</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+
+
+
+@code {
+    public int UIDLoggedIn = 0;
+    bool CreatePostClicked = false;
+    bool formIsValid = false;
+    public string PostCap = string.Empty;
+    public string PostText = string.Empty;
+    User user = new User();
+    string PostedYN; // shows the value that CreatePost defines -> Posted or not
+    string CreatePostIcon = $"images/PostButton.png";
+    void CPostClicked()
+    {
+        CreatePostClicked = true;
+    }
+    async void CreatePost()
+    {
+        if (PostCap !=null && PostText != null )
+        {
+            //user = await session.GetItemAsync<User>("UserLoggedIn");
+            UIDLoggedIn = await uservice.GetUIDSessionAsync(); // added uservice just testing
+            try
+            {
+                if (UIDLoggedIn!=0)
+                {
+                    //int UID = user.User_ID;
+                    new Post(PostCap, PostText, UIDLoggedIn);
+
+                }
+                else
+                {
+                    _navigationManager.NavigateTo("/login");
+
+                }
+
+            }
+            catch 
+            {
+                _navigationManager.NavigateTo("/login"); // if the UID isnt there it means user isnt logged in -> needs to be fixed
+
+            }
+            string posted = "Posted";
+            await js.InvokeVoidAsync("alert", posted);
+
+            await Task.Delay(2000);
+            _navigationManager.NavigateTo("/feed", forceLoad: true);
+        }
+        else
+        {
+            
+            string Notposted = "Not Posted | Please Enter Details";
+            await js.InvokeVoidAsync("alert", Notposted);
+            _navigationManager.NavigateTo("/feed", forceLoad:true);
+        }
+
+
+    }
+    //private async Task<int> GetUIDSessionAsync()
+    //{
+    //    // need to call this to get the value
+    //    int userLoggedinID = 0;
+    //    User userLoggedin = await session.GetItemAsync<User>("UserLoggedIn");
+    //    if (userLoggedin != null)
+    //    {
+    //        userLoggedinID = userLoggedin.User_ID;
+    //    }
+
+
+    //    return userLoggedinID;
+    //}
+    List<Post> SuggestedPosts = new List<Post>();
+    public async Task<List<Post>> GetSuggestedPosts() // shouldnt be a void should be a list which can be run through mayb list of users which can be ran through and shown user.Username etc ->
+                                                      //add friend button after it the getting user would be different would have to get that specific user looking ats ID and send it with that -> only suggest one at a time?
+    {
+
+        SocialNetwork sn = new();
+        List<Post> allPosts = new();
+        List<Post> PostsToSuggest = new();
+        int MaxSuggestedPosts = 5;
+        UIDLoggedIn = await uservice.GetUIDSessionAsync(); // added uservice test
+        Random rng = new Random();
+        if (UIDLoggedIn != 0)
+        {
+
+            List<int> UIDSofSuggestedPosters = sn.SuggestedPosters(UIDLoggedIn); // suggests friends of UserLoggedIn even if not on their own page
+                                                                                 // go through the IDs and get the User from it
+            foreach (int id in UIDSofSuggestedPosters)
+            {
+                if (id != 0)
+                {
+                    List<Post> ListOfPostsByUID = await PService.GetPostsByUID(id);
+                    if (ListOfPostsByUID != null)
+                    {
+                        foreach (Post item in ListOfPostsByUID)
+                        {
+                            allPosts.Add(item);
+                        }
+
+                    }
+
+                }
+
+            }
+
+            if (allPosts.Count>MaxSuggestedPosts) // checks if theres more than 5 posts to add
+            {
+                for (int i = 0; i < MaxSuggestedPosts; i++)
+                {
+                    int randomPos = rng.Next(allPosts.Count);
+                    Post suggestedPost = allPosts[randomPos];
+                    if (suggestedPost!=null)
+                    {
+                        allPosts.RemoveAt(randomPos);
+                        PostsToSuggest.Add(suggestedPost);
+                    }
+
+
+                }
+            }
+            else
+            {
+                PostsToSuggest.AddRange(allPosts); // adds all the posts in allposts in one go if not more than 5 posts as the for loops unnecessary if not enough posts
+            }
+
+        }
+
+        return PostsToSuggest;
+    }
+    List<Post> FriendsPosts = new List<Post>();
+    //async void HandleReply()
+    //{
+    //    int userID = await GetUIDSessionAsync();
+    //    string ReplyText = ""; //-> bind the values from an input
+    //    int Post_Id = 0; // needs to be given a value
+    //    DBConnection socialDB = new();
+    //    // get the postID
+    //    //create a new row in dbo.Reply with values of UID(Person Logged in) PostID and Reply
+    //    string sql = "INSERT INTO dbo.Reply (User_ID,Post_Id,ReplyText) VALUES (@userID,@Post_Id,@ReplyText)";
+    //    List<SqlParameter> sqlParameters = new();
+    //    sqlParameters.Add(new SqlParameter("userID",userID));
+    //    sqlParameters.Add(new SqlParameter("Post_Id", Post_Id));
+    //    sqlParameters.Add(new SqlParameter("ReplyText", ReplyText));
+    //    socialDB.Insert(sql, sqlParameters);
+    //}
+    async Task<List<Post>> SortIntoFriendsPosts()
+    {
+
+        //User uLoggedIn = await session.GetItemAsync<User>("UserLoggedIn");
+        int uLoggedInUID = await uservice.GetUIDSessionAsync();
+        /* Posts = await PService.GetPosts();*/ // should comment out the execution at the top so it doesnt show this should show the FriendsPosts
+        if (uLoggedInUID!=0) // was uLoggedIn!=null)
+        {
+            foreach (Post post in Posts)
+            {
+
+                //if (sn.Connections[uLoggedIn.User_ID].Contains(post.User_ID) || uLoggedIn.User_ID == post.User_ID) // checks if there is a connection if so it adds to the List
+                //{
+                //    FriendsPosts.Add(post);
+                //}
+                if (sn.Connections[uLoggedInUID].Contains(post.User_ID) || uLoggedInUID == post.User_ID) // checks if there is a connection if so it adds to the List
+                {
+                    FriendsPosts.Add(post);
+                }
+
+            }
+            FriendsPosts.Reverse(); // reverses the List so its in order of retrieved from dbo so basically sorts the whole list into timeorder of posted
+            return FriendsPosts;
+        }
+        else
+        {
+            return null;
+        }
+
+    }
+    //async void GetUN()
+    //{
+
+    //    //string sql = "Select Username FROM dbo.UserAccount,dbo.Post WHERE User_ID = @UID AND dbo.UserAccount.User_ID = dbo.Post.UserID ";
+
+    //}
+    private List<Post> Posts;
+
+    protected override async Task OnInitializedAsync() // maybe not on Initialized should depend on connections
+    {
+
+        Posts = await PService.GetPosts();
+        await SortIntoFriendsPosts();
+        SuggestedPosts = await GetSuggestedPosts();
+    }
+}
